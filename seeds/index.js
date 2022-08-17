@@ -3,34 +3,38 @@ import neo4j from 'neo4j-driver'
 
 const driver = neo4j.driver("bolt://localhost", neo4j.auth.basic("neo4j", "neo4j"))
 const session = driver.session()
+const count = 100
 
 try {
-  const c = `
-    CREATE
-      (Aluno:Aluno {nome: $nome, nascimento: datetime($nascimento)}),
-      (Endereco:Endereco {rua: $rua, numero: $numero, bairro: $bairro, cidade: $cidade, estado: $estado}),
-      (Turma:Turma {serie: $serie}),
-      (Aluno)-[:MORA]->(Endereco),
-      (Aluno)-[:FREQUENTA]->(Turma)
-    RETURN Aluno, Endereco, Turma
-  `
-  const result = await session.run(
-    c, {
-      nome: faker.name.fullName(),
-      nascimento: faker.date.birthdate().toISOString(),
-      rua: faker.address.street(),
-      numero: faker.address.buildingNumber(),
-      bairro: faker.address.country(),
-      cidade: faker.address.cityName(),
-      estado: faker.address.state(),
-      serie: faker.random.numeric(1)
+
+  for (let serie = 1; serie <= count; serie++) {
+    await session.run(`CREATE (Turma:Turma {serie: $serie})`, {serie: serie})
+
+    for (let i = 0; i<faker.random.numeric(2); i++) {
+      const c = `
+        MATCH (Turma:Turma {serie: $serie})
+        CREATE
+          (Aluno:Aluno {nome: $nome, nascimento: date($nascimento)}),
+          (Endereco:Endereco {rua: $rua, numero: $numero, bairro: $bairro, cidade: $cidade, estado: $estado}),
+          (Aluno)-[:MORA]->(Endereco),
+          (Aluno)-[:FREQUENTA]->(Turma)
+      `
+      const adrr = faker.address
+
+      await session.run(
+        c, {
+          nome: faker.name.fullName(),
+          nascimento: faker.date.birthdate({ min: 1990, max: 2020, mode: 'year' }).toISOString().split('T')[0],
+          rua: adrr.street(),
+          numero: adrr.buildingNumber(),
+          bairro: adrr.country(),
+          cidade: adrr.cityName(),
+          estado: adrr.stateAbbr(),
+          serie: serie
+        }
+      )
     }
-  )
-
-  const singleRecord = result.records[0]
-  const node = singleRecord.get(0)
-
-  console.log(node.properties.nome)
+  }
 } catch(e) {
   console.error(`Error: ${e}`)
 } finally {
